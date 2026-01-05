@@ -1,118 +1,109 @@
-APPLICATIONS = {
+
+class PacketBuilder:
+    APPLICATIONS = {
     "web": {"protocol": "HTTP", "transport": "TCP", "port": 80},
-    "dns": {"protocol": "DNS", "transport": "UDP", "port": 53}
-}
+    "dns": {"protocol": "DNS", "transport": "UDP", "port": 53}}
 
+    def __init__(self):
+        self.packet = {}
+        self.errors = []
+        self.data_for_transport_layer = None
 
-packet = {}
-ip_validations = {}
-
-def ip_validate(ip_add:str):
-    octets = [octet for octet in ip_add.split('.')]
-    if len(octets) == 4:
-        try:
-            octets = [int(octet) for octet in octets]
-            for octet in octets:
-                if octet >= 0 and octet <= 255:
-                    pass
-                else:
-                    print("One or more octets are out of range..")
-                    return False
-        except ValueError as e:
-            print("Invalid literal in IPV4 add instead of an int..")
+    def ip_validate(self,ip_add):
+        octets = [octet for octet in ip_add.split('.')]
+        if len(octets) == 4:
+            try:
+                octets = [int(octet) for octet in octets]
+                for octet in octets:
+                    if octet >= 0 and octet <= 255:
+                        pass
+                    else:
+                        return False
+            except ValueError as e:
+                return False
+            
+            return True
+        else:
             return False
         
-        return True
-    else:
-        print("One or more IPV4 addresses are incorrect..")
-        return False
-       
-def application_data(app_type,payload,src_ip,dest_ip):
-    app_protocol = None
-    try:
-        app_protocol = APPLICATIONS[app_type]['protocol']
-    except KeyError as e:
-        print(f"The application protocol could not be located with key : {app_type}..")
-        app_protocol = None
-    app_payload = payload
-    if app_protocol != None:
-        app_PDU = {
-            "application" : {
-                    "protocol" : app_protocol,
-                    "payload" : app_payload
+    def application_layer(self,app_type,payload):
+        if app_type not in self.APPLICATIONS:
+            self.errors.append(f"Apptype {app_type} is unknown..")
+            return
+        
+        app_data = self.APPLICATIONS[app_type]
+        self.packet['application'] = {
+                    "protocol" : app_data['protocol'],
+                    "payload" : payload
                 }
+       
+        self.data_for_transport_layer = app_data         
+
+    def transport_layer(self):
+        if 'application' not in self.packet:
+            return
+        app_data = self.data_for_transport_layer
+
+        self.packet['transport'] = {
+                "protocol" : app_data["transport"],
+                "dest_port" : app_data["port"]
+            }
+
+    def network_layer(self,src_ip,dest_ip):
+        src_check = self.ip_validate(src_ip)
+        dest_check = self.ip_validate(dest_ip)
+        self.packet['network'] = {
+            "src_ip" : "⚠️",
+            "dest_ip" : "⚠️"
         }
-    else:
-        print("Stopped due to app_protocol : None..")
-        return 0
-    packet.update(app_PDU)
-    transport_selection(app_type,src_ip,dest_ip)            
+        if src_check:
+            self.packet['network']['src_ip'] = src_ip
+        else:
+            self.errors.append(f"Invalid source ip : {src_ip}..")
 
-def transport_selection(app_type,src_ip,dest_ip):
-    transport_protocol = APPLICATIONS[app_type]["transport"]
-    destination_port = APPLICATIONS[app_type]['port']
-    # transport_PDU = app_PDU
-    transport_data = {
-        "transport" : {
-            "protocol" : transport_protocol,
-            "dest_port" : destination_port
-        }
-    }
-    # transport_PDU.update(transport_data)
-    packet.update(transport_data)
-    packet_encapsulation(src_ip,dest_ip)
+        if dest_check:
+            self.packet['network']['dest_ip'] = dest_ip
+        else:
+            self.errors.append(f"Invalid destination ip : {dest_ip}..")
 
-def packet_encapsulation(src_ip,dest_ip):
-    if ip_validate(src_ip):
-        ip_check = {"src_ip_valid" : True}
-        ip_validations.update(ip_check)
-    else:
-        ip_check = {"src_ip_valid" : False}
-        ip_validations.update(ip_check)
-        return
-    if ip_validate(dest_ip):
-        ip_check = {"dest_ip_valid" : True}
-        ip_validations.update(ip_check)
-    else:
-        ip_check = {"dest_ip_valid" : False}
-        ip_validations.update(ip_check)
-        return
-    # network_PDU = transport_PDU
-    packet_data = {
-        "network": {
-        "src_ip" : src_ip,
-        "dest_ip" : dest_ip
-        }
-    }
-    # network_PDU.update(packet_data)
-    packet.update(packet_data)
-    return True
 
-def result():
-    layers = []
-    if "application" in packet:
-        layers.append("Application")
-    if "transport" in packet:
-        layers.append("Transport")
-    if "network" in packet:
-        layers.append("Network")
-        print("\nPacket successfully constructed..")
-        print("\nLayers present:")
-        for layer in layers:
-            print(f"- {layer}")
-        print(f"\nTransport protocol : {packet['transport']['protocol']}")
-        print(f"Destination port : {APPLICATIONS[app_type]['port']}")
-        print(f"Source IP valid : {ip_validations['src_ip_valid']}")
-        print(f"Destination IP valid : {ip_validations['dest_ip_valid']}")
-    else:
-        print("Packet was not constructed..")    
+    def result(self):
+        print("\n--Packet Analysis--")
+        if self.errors:
+            print(f"\n⚠️  Alert: Packet contains {len(self.errors)} errors (see details below)..")
 
-print("IPV4 Communication Simulator\n")
-src_ip = input("Enter source IP :")
-dest_ip = input("Enter destination IP :")
-app_type = input('Application type :')
-payload = input('Enter your payload :')
+        application = self.packet.get('application',{})
+        transport = self.packet.get('transport',{})
+        network = self.packet.get('network',{})
 
-application_data(app_type,payload,src_ip,dest_ip)
-result()
+        if network:
+            print("\nLayers Constructed:")
+            print(f"\n└──[Network] -> Source IP : {network.get('src_ip')}  | Destination IP : {network.get('dest_ip')}")
+            print(f"\n └──[Transport] -> Protocol : {transport.get('protocol')} | Port : {transport.get('dest_port')}")
+            print(f"\n  └──[Application] -> Protocol : {application.get('protocol')} | Payload : {application.get('payload')}")
+        else:
+            print("\nPacket Contruction Failed 🚫")
+            return
+        
+        if self.errors:
+            print("\n❌ Following fixes are required:\n")
+            for error in self.errors:
+                print(f"{self.errors.index(error) + 1}. {error}..")
+        else:
+            print("\n✅ Packet constructed successfully.")
+        print("\n")
 
+
+def main():
+    print("\nPacket Encapsulation Simulator\n")
+    src_ip = input("Enter source IP :")
+    dest_ip = input("Enter destination IP :")
+    app_type = input('Application type :').lower()
+    payload = input('Enter your payload :')
+    builder = PacketBuilder()
+    builder.application_layer(app_type,payload)
+    builder.transport_layer()
+    builder.network_layer(src_ip,dest_ip)
+    builder.result()
+
+main()

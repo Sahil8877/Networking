@@ -76,14 +76,13 @@ class PacketBuilder:
         transport = self.packet.get('transport',{})
         network = self.packet.get('network',{})
 
-        if network:
-            print("\nLayers Constructed:")
-            print(f"\n└──[Network] -> Source IP : {network.get('src_ip')}  | Destination IP : {network.get('dest_ip')}")
+     
+        print("\nLayers Constructed:")
+        print(f"\n└──[Network] -> Source IP : {network.get('src_ip')}  | Destination IP : {network.get('dest_ip')}")
+        if transport:
             print(f"\n └──[Transport] -> Protocol : {transport.get('protocol')} | Port : {transport.get('dest_port')}")
+        if application:
             print(f"\n  └──[Application] -> Protocol : {application.get('protocol')} | Payload : {application.get('payload')}")
-        else:
-            print("\nPacket Contruction Failed 🚫")
-            return
         
         if self.errors:
             print("\n❌ Following fixes are required:\n")
